@@ -3,6 +3,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 from fastapi import FastAPI, File, Form, UploadFile, HTTPException
 from fastapi.responses import HTMLResponse, FileResponse
+from fastapi.staticfiles import StaticFiles
 from openai import OpenAI
 from generators import create_pdf, create_docx, create_xlsx
 from transcript import transcribe_audio_file, youtube_transcript
@@ -16,6 +17,9 @@ key = os.getenv("OPENAI_API_KEY")
 if not key: raise RuntimeError("OPENAI_API_KEY is missing in .env")
 client = OpenAI(api_key=key)
 app = FastAPI(title="AI Video Notes Maker")
+
+# Serve /static/style.css etc. Without this, FastAPI returns 404 for static files.
+app.mount("/static", StaticFiles(directory=str(BASE_DIR/"static")), name="static")
 
 @app.get("/", response_class=HTMLResponse)
 def home():
@@ -51,7 +55,10 @@ Return ONLY valid JSON:
 Be accurate and do not invent facts.
 TRANSCRIPT:
 {transcript}"""
-        r = client.responses.create(model=os.getenv("OPENAI_TEXT_MODEL","gpt-5.6-luna"), input=prompt)
+        # NOTE: "gpt-5.6-luna" is not a real OpenAI model name and will fail.
+        # Default to a real, current model. Override with OPENAI_TEXT_MODEL env var if needed.
+        model_name = os.getenv("OPENAI_TEXT_MODEL", "gpt-4o-mini")
+        r = client.responses.create(model=model_name, input=prompt)
         raw = r.output_text.strip()
         if raw.startswith("```"):
             raw = raw.strip("`")
