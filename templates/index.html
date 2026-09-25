@@ -3,7 +3,32 @@
 <form id="f"><label>YouTube URL</label><input name="youtube_url" placeholder="https://www.youtube.com/watch?v=..."><div class="or">OR</div><label>Upload Video / Audio</label><input type="file" name="video" accept=".mp4,.mp3,.m4a,.wav,.webm,.mpeg,.mpga">
 <label>Language</label><select name="language"><option>English</option><option>Hindi</option><option>Punjabi</option><option>English + Hindi</option><option>English + Punjabi</option></select>
 <label>Notes Type</label><select name="notes_type"><option>Detailed Notes</option><option>Short Notes</option><option>Exam Notes</option><option>Questions and Answers</option></select>
-<button>GENERATE NOTES</button></form><div id="status"></div><div id="result" class="hidden"><h2 id="title"></h2><p id="summary"></p><a id="pdf">📄 PDF</a> <a id="word">📝 WORD</a> <a id="excel">📊 EXCEL</a></div>
+<button id="genBtn">GENERATE NOTES</button></form><div id="statusMsg"></div><div id="result" class="hidden"><h2 id="title"></h2><p id="summary"></p><a id="pdf">📄 PDF</a> <a id="word">📝 WORD</a> <a id="excel">📊 EXCEL</a></div>
 </section></main><script>
-f.onsubmit=async e=>{e.preventDefault();status.textContent="⏳ Processing...";result.classList.add("hidden");try{let r=await fetch("/generate",{method:"POST",body:new FormData(f)}),d=await r.json();if(!r.ok)throw Error(d.detail);status.textContent="✅ Done";title.textContent=d.title;summary.textContent=d.summary;pdf.href=d.files.pdf;word.href=d.files.word;excel.href=d.files.excel;result.classList.remove("hidden")}catch(x){status.textContent="❌ "+x.message}};
+// NOTE: never use id="status" for an element — window.status is a reserved
+// built-in browser property, so `status.textContent = ...` silently fails
+// (no console error), which made the button look like it "did nothing".
+const statusEl = document.getElementById("statusMsg");
+const genBtn = document.getElementById("genBtn");
+f.onsubmit=async e=>{
+  e.preventDefault();
+  genBtn.disabled = true;
+  statusEl.textContent="⏳ Processing... (this can take 30-90s, please wait)";
+  result.classList.add("hidden");
+  try{
+    let r=await fetch("/generate",{method:"POST",body:new FormData(f)});
+    let d=await r.json();
+    if(!r.ok) throw new Error(d.detail || "Something went wrong");
+    statusEl.textContent="✅ Done";
+    title.textContent=d.title;
+    summary.textContent=d.summary;
+    pdf.href=d.files.pdf; word.href=d.files.word; excel.href=d.files.excel;
+    result.classList.remove("hidden");
+  }catch(x){
+    console.error(x);
+    statusEl.textContent="❌ "+x.message;
+  }finally{
+    genBtn.disabled = false;
+  }
+};
 </script></body></html>
