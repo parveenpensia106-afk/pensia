@@ -47,8 +47,11 @@ def _ydl_opts(tmp: str, **extra):
     opts = {"quiet": True, "no_warnings": True, "outtmpl": os.path.join(tmp, "%(id)s.%(ext)s")}
     cookies = os.getenv("YT_COOKIES_FILE", "").strip()   # optional cookies.txt (Netscape format)
     proxy = os.getenv("YT_PROXY_URL", "").strip()
+    browser = os.getenv("YT_COOKIES_BROWSER", "").strip().lower()  # firefox / chrome / edge / brave
     if cookies and os.path.exists(cookies):
         opts["cookiefile"] = cookies
+    elif browser:
+        opts["cookiesfrombrowser"] = (browser,)
     if proxy:
         opts["proxy"] = proxy
     opts.update(extra)
@@ -117,8 +120,8 @@ def youtube_transcript(url: str) -> str:
             if text and text.strip():
                 return text
         except Exception as e:
-            errors.append(f"{name}: {str(e).splitlines()[0][:150]}")
+            errors.append(f"{name}: {type(e).__name__}: {(str(e).strip().splitlines() or ['blocked'])[0][:150]}")
     raise ValueError(
         "YouTube is blocking transcript/audio download from this IP. "
         "Fix: (1) paste the transcript in the box below, (2) upload the video/audio file, or "
-        "(3) set YT_PROXY_URL / YT_COOKIES_FILE in .env. Details -> " + " | ".join(errors))
+        "(3) set YT_COOKIES_BROWSER=firefox (or YT_COOKIES_FILE / YT_PROXY_URL) in .env and restart. Details -> " + " | ".join(errors))
