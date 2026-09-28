@@ -16,16 +16,21 @@ BASE_DIR = Path(__file__).resolve().parent
 UPLOAD_DIR, OUTPUT_DIR = BASE_DIR/"uploads", BASE_DIR/"output"
 UPLOAD_DIR.mkdir(exist_ok=True); OUTPUT_DIR.mkdir(exist_ok=True)
 
+def _clean(k):
+    return (k or "").strip().strip('"').strip("'").strip()
+
 def _find_key():
-    k = os.getenv("ANTHROPIC_API_KEY", "").strip()
-    if not k:
-        o = os.getenv("OPENAI_API_KEY", "").strip()
-        if o.startswith("sk-ant-"):   # user pasted a Claude key in the old variable
-            k = o
-    return k
+    # placeholder (YOUR_KEY) ya galat variable skip karke pehli asli sk-ant- key lo
+    for name in ("ANTHROPIC_API_KEY", "OPENAI_API_KEY"):
+        k = _clean(os.getenv(name))
+        if k.startswith("sk-ant-") and "YOUR" not in k.upper():
+            print(f"[key] using {name}: {k[:12]}...{k[-4:]}  (length {len(k)})")
+            if len(k) < 80: print("[key] WARNING: key bahut chhoti hai - adhoori copy hui lagti hai")
+            return k
+    return ""
 
 key = _find_key()
-if not key: raise RuntimeError("ANTHROPIC_API_KEY is missing in .env")
+if not key: raise RuntimeError("Valid ANTHROPIC_API_KEY (sk-ant-...) .env mein nahi mili")
 client = anthropic.Anthropic(api_key=key)
 app = FastAPI(title="AI Video Notes Maker")
 
@@ -88,6 +93,9 @@ TRANSCRIPT:
                 "summary":notes.get("summary",""),
                 "files":{"pdf":f"/download/{jid}.pdf","word":f"/download/{jid}.docx","excel":f"/download/{jid}.xlsx"}}
     except HTTPException: raise
+    except anthropic.AuthenticationError:
+        raise HTTPException(401, "Claude API key invalid. console.anthropic.com se nayi key banao, "
+                                 ".env mein ANTHROPIC_API_KEY=sk-ant-... (bina quotes/spaces) daalo, server restart karo.")
     except Exception as e: raise HTTPException(500, str(e))
 
 @app.get("/download/{filename}")
