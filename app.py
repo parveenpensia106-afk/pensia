@@ -8,7 +8,7 @@ print("[env] YT_COOKIES_BROWSER =", repr(os.getenv("YT_COOKIES_BROWSER")))
 from fastapi import FastAPI, File, Form, UploadFile, HTTPException
 from fastapi.responses import HTMLResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
-import anthropic
+from openai import OpenAI
 from generators import create_pdf, create_docx, create_xlsx
 from transcript import transcribe_audio_file, youtube_transcript
 
@@ -16,32 +16,13 @@ BASE_DIR = Path(__file__).resolve().parent
 UPLOAD_DIR, OUTPUT_DIR = BASE_DIR/"uploads", BASE_DIR/"output"
 UPLOAD_DIR.mkdir(exist_ok=True); OUTPUT_DIR.mkdir(exist_ok=True)
 
-def _clean(k):
-    return (k or "").strip().strip('"').strip("'").strip()
-
-def _find_key():
-    # placeholder (YOUR_KEY) ya galat variable skip karke pehli asli sk-ant- key lo
-    for name in ("ANTHROPIC_API_KEY", "OPENAI_API_KEY"):
-        k = _clean(os.getenv(name))
-        if k.startswith("sk-ant-") and "YOUR" not in k.upper():
-            print(f"[key] using {name}: {k[:12]}...{k[-4:]}  (length {len(k)})")
-            if len(k) < 80: print("[key] WARNING: key bahut chhoti hai - adhoori copy hui lagti hai")
-            return k
-    return ""
-
-key = _find_key()
-if not key: raise RuntimeError("Valid ANTHROPIC_API_KEY (sk-ant-...) .env mein nahi mili")
-client = anthropic.Anthropic(api_key=key)
+key = os.getenv("OPENAI_API_KEY")
+if not key: raise RuntimeError("OPENAI_API_KEY is missing in .env")
+client = OpenAI(api_key=key)
 app = FastAPI(title="AI Video Notes Maker")
 
 # Serve /static/style.css etc. Without this, FastAPI returns 404 for static files.
 app.mount("/static", StaticFiles(directory=str(BASE_DIR/"static")), name="static")
-
-def parse_json(raw: str):
-    """Claude kabhi ```json fences ya extra text de deta hai; sirf { ... } nikaalo."""
-    i, j = raw.find("{"), raw.rfind("}")
-    if i == -1 or j == -1: raise ValueError("Model did not return JSON. Try again.")
-    return json.loads(raw[i:j+1])
 
 @app.get("/", response_class=HTMLResponse)
 def home():
@@ -80,11 +61,15 @@ Return ONLY valid JSON:
 Be accurate and do not invent facts.
 TRANSCRIPT:
 {transcript}"""
-        model_name = os.getenv("ANTHROPIC_MODEL") or "claude-sonnet-5"
-        r = client.messages.create(model=model_name, max_tokens=8000,
-                                   messages=[{"role": "user", "content": prompt}])
-        raw = "".join(b.text for b in r.content if getattr(b, "type", "") == "text").strip()
-        notes = parse_json(raw)
+        # NOTE: "gpt-5.6-luna" is not a real OpenAI model name and will fail.
+        # Default to a real, current model. Override with OPENAI_TEXT_MODEL env var if needed.
+        model_name = os.getenv("OPENAI_TEXT_MODEL") or "gpt-4o-mini"
+        r = client.responses.create(model=model_name, input=prompt)
+        raw = r.output_text.strip()
+        if raw.startswith("```"):
+            raw = raw.strip("`")
+            if raw.startswith("json"): raw = raw[4:].strip()
+        notes = json.loads(raw)
 
         jid = uuid.uuid4().hex
         pdf, docx, xlsx = OUTPUT_DIR/f"{jid}.pdf", OUTPUT_DIR/f"{jid}.docx", OUTPUT_DIR/f"{jid}.xlsx"
@@ -93,9 +78,6 @@ TRANSCRIPT:
                 "summary":notes.get("summary",""),
                 "files":{"pdf":f"/download/{jid}.pdf","word":f"/download/{jid}.docx","excel":f"/download/{jid}.xlsx"}}
     except HTTPException: raise
-    except anthropic.AuthenticationError:
-        raise HTTPException(401, "Claude API key invalid. console.anthropic.com se nayi key banao, "
-                                 ".env mein ANTHROPIC_API_KEY=sk-ant-... (bina quotes/spaces) daalo, server restart karo.")
     except Exception as e: raise HTTPException(500, str(e))
 
 @app.get("/download/{filename}")
