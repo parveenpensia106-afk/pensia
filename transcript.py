@@ -1,13 +1,17 @@
 import os, re, glob, tempfile, shutil
 from pathlib import Path
 from urllib.parse import urlparse, parse_qs
-from openai import OpenAI
-
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 MAX_AUDIO_BYTES = 24 * 1024 * 1024  # OpenAI transcription limit is 25 MB
 
 
 def transcribe_audio_file(path: Path) -> str:
+    # Claude audio transcribe nahi karta; iske liye OpenAI key (sk-...) chahiye.
+    key = os.getenv("OPENAI_API_KEY", "").strip()
+    if not key or key.startswith("sk-ant-"):
+        raise ValueError("Audio/video transcription ke liye .env mein asli OPENAI_API_KEY (sk-...) chahiye. "
+                         "Warna YouTube URL ya 'Paste Transcript' use karo.")
+    from openai import OpenAI
+    client = OpenAI(api_key=key)
     with path.open("rb") as f:
         r = client.audio.transcriptions.create(
             model=os.getenv("OPENAI_TRANSCRIBE_MODEL", "gpt-4o-mini-transcribe"), file=f)
