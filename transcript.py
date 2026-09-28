@@ -107,6 +107,16 @@ def _via_audio(url: str) -> str:
         shutil.rmtree(tmp, ignore_errors=True)
 
 
+def _cookie_status() -> str:
+    f = os.getenv("YT_COOKIES_FILE", "").strip()
+    b = os.getenv("YT_COOKIES_BROWSER", "").strip()
+    if f:
+        return f"cookie file: {f} ({'found' if os.path.exists(f) else 'FILE NOT FOUND'})"
+    if b:
+        return f"browser cookies: {b}"
+    return "NO COOKIES SET (.env not read or YT_COOKIES_BROWSER missing)"
+
+
 def youtube_transcript(url: str) -> str:
     vid = extract_video_id(url)
     if not vid:
@@ -124,4 +134,4 @@ def youtube_transcript(url: str) -> str:
     raise ValueError(
         "YouTube is blocking transcript/audio download from this IP. "
         "Fix: (1) paste the transcript in the box below, (2) upload the video/audio file, or "
-        "(3) set YT_COOKIES_BROWSER=firefox (or YT_COOKIES_FILE / YT_PROXY_URL) in .env and restart. Details -> " + " | ".join(errors))
+        "(3) set YT_COOKIES_BROWSER=firefox (or YT_COOKIES_FILE / YT_PROXY_URL) in .env and restart. Details -> " + " | ".join(errors) + " || " + _cookie_status())
