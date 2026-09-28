@@ -4,7 +4,7 @@ python-multipart
 openai
 python-dotenv
 youtube-transcript-api
+yt-dlp
 reportlab
 python-docx
 openpyxl
-gunicorn
