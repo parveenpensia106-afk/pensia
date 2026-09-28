@@ -28,9 +28,12 @@ def home():
 @app.post("/generate")
 async def generate_notes(youtube_url: str=Form(""), language: str=Form("English"),
                          notes_type: str=Form("Detailed Notes"),
+                         transcript_text: str=Form(""),
                          video: UploadFile|None=File(None)):
     try:
-        if youtube_url.strip():
+        if transcript_text.strip():
+            transcript = transcript_text.strip()
+        elif youtube_url.strip():
             transcript = youtube_transcript(youtube_url.strip())
         elif video and video.filename:
             ext = Path(video.filename).suffix.lower()
@@ -41,7 +44,7 @@ async def generate_notes(youtube_url: str=Form(""), language: str=Form("English"
                 while chunk := await video.read(1024*1024): f.write(chunk)
             transcript = transcribe_audio_file(path)
         else:
-            raise HTTPException(400, "Enter a YouTube URL or upload a video/audio file.")
+            raise HTTPException(400, "Enter a YouTube URL, paste a transcript, or upload a video/audio file.")
         if not transcript.strip(): raise HTTPException(400, "No transcript was obtained.")
 
         prompt = f"""Create educational notes from this transcript.
@@ -57,7 +60,7 @@ TRANSCRIPT:
 {transcript}"""
         # NOTE: "gpt-5.6-luna" is not a real OpenAI model name and will fail.
         # Default to a real, current model. Override with OPENAI_TEXT_MODEL env var if needed.
-        model_name = os.getenv("OPENAI_TEXT_MODEL", "gpt-4o-mini")
+        model_name = os.getenv("OPENAI_TEXT_MODEL") or "gpt-4o-mini"
         r = client.responses.create(model=model_name, input=prompt)
         raw = r.output_text.strip()
         if raw.startswith("```"):
