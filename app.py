@@ -1,25 +1,42 @@
 import os, json, uuid
 from pathlib import Path
 from dotenv import load_dotenv
+_ENV_PATH = Path(__file__).resolve().parent / ".env"
+load_dotenv(_ENV_PATH, override=True)
+print("[env] .env path:", _ENV_PATH, "| exists:", _ENV_PATH.exists())
+print("[env] YT_COOKIES_BROWSER =", repr(os.getenv("YT_COOKIES_BROWSER")))
 from fastapi import FastAPI, File, Form, UploadFile, HTTPException
 from fastapi.responses import HTMLResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
-from openai import OpenAI
+import anthropic
 from generators import create_pdf, create_docx, create_xlsx
 from transcript import transcribe_audio_file, youtube_transcript
 
-load_dotenv()
 BASE_DIR = Path(__file__).resolve().parent
 UPLOAD_DIR, OUTPUT_DIR = BASE_DIR/"uploads", BASE_DIR/"output"
 UPLOAD_DIR.mkdir(exist_ok=True); OUTPUT_DIR.mkdir(exist_ok=True)
 
-key = os.getenv("OPENAI_API_KEY")
-if not key: raise RuntimeError("OPENAI_API_KEY is missing in .env")
-client = OpenAI(api_key=key)
+def _find_key():
+    k = os.getenv("ANTHROPIC_API_KEY", "").strip()
+    if not k:
+        o = os.getenv("OPENAI_API_KEY", "").strip()
+        if o.startswith("sk-ant-"):   # user pasted a Claude key in the old variable
+            k = o
+    return k
+
+key = _find_key()
+if not key: raise RuntimeError("ANTHROPIC_API_KEY is missing in .env")
+client = anthropic.Anthropic(api_key=key)
 app = FastAPI(title="AI Video Notes Maker")
 
 # Serve /static/style.css etc. Without this, FastAPI returns 404 for static files.
 app.mount("/static", StaticFiles(directory=str(BASE_DIR/"static")), name="static")
+
+def parse_json(raw: str):
+    """Claude kabhi ```json fences ya extra text de deta hai; sirf { ... } nikaalo."""
+    i, j = raw.find("{"), raw.rfind("}")
+    if i == -1 or j == -1: raise ValueError("Model did not return JSON. Try again.")
+    return json.loads(raw[i:j+1])
 
 @app.get("/", response_class=HTMLResponse)
 def home():
@@ -58,15 +75,11 @@ Return ONLY valid JSON:
 Be accurate and do not invent facts.
 TRANSCRIPT:
 {transcript}"""
-        # NOTE: "gpt-5.6-luna" is not a real OpenAI model name and will fail.
-        # Default to a real, current model. Override with OPENAI_TEXT_MODEL env var if needed.
-        model_name = os.getenv("OPENAI_TEXT_MODEL") or "gpt-4o-mini"
-        r = client.responses.create(model=model_name, input=prompt)
-        raw = r.output_text.strip()
-        if raw.startswith("```"):
-            raw = raw.strip("`")
-            if raw.startswith("json"): raw = raw[4:].strip()
-        notes = json.loads(raw)
+        model_name = os.getenv("ANTHROPIC_MODEL") or "claude-sonnet-5"
+        r = client.messages.create(model=model_name, max_tokens=8000,
+                                   messages=[{"role": "user", "content": prompt}])
+        raw = "".join(b.text for b in r.content if getattr(b, "type", "") == "text").strip()
+        notes = parse_json(raw)
 
         jid = uuid.uuid4().hex
         pdf, docx, xlsx = OUTPUT_DIR/f"{jid}.pdf", OUTPUT_DIR/f"{jid}.docx", OUTPUT_DIR/f"{jid}.xlsx"
