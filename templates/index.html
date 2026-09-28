@@ -1,10 +1,90 @@
-<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>AI Video Notes</title><link rel="stylesheet" href="/static/style.css"></head>
-<body><main><section class="card"><h1>🎓 AI Video Notes Maker</h1><p>YouTube / Video → Notes → PDF • Word • Excel</p>
-<form id="f"><label>YouTube URL</label><input name="youtube_url" placeholder="https://www.youtube.com/watch?v=..."><div class="or">OR</div><label>Upload Video / Audio</label><input type="file" name="video" accept=".mp4,.mp3,.m4a,.wav,.webm,.mpeg,.mpga">
-<div class="or">OR</div><label>Paste Transcript (use if YouTube blocks)</label><textarea name="transcript_text" rows="5" placeholder="Paste transcript here..."></textarea>
-<label>Language</label><select name="language"><option>English</option><option>Hindi</option><option>Punjabi</option><option>English + Hindi</option><option>English + Punjabi</option></select>
-<label>Notes Type</label><select name="notes_type"><option>Detailed Notes</option><option>Short Notes</option><option>Exam Notes</option><option>Questions and Answers</option></select>
-<button>GENERATE NOTES</button></form><div id="status"></div><div id="result" class="hidden"><h2 id="title"></h2><p id="summary"></p><a id="pdf">📄 PDF</a> <a id="word">📝 WORD</a> <a id="excel">📊 EXCEL</a></div>
-</section></main><script>
-f.onsubmit=async e=>{e.preventDefault();status.textContent="⏳ Processing...";result.classList.add("hidden");try{let r=await fetch("/generate",{method:"POST",body:new FormData(f)}),d=await r.json();if(!r.ok)throw Error(d.detail);status.textContent="✅ Done";title.textContent=d.title;summary.textContent=d.summary;pdf.href=d.files.pdf;word.href=d.files.word;excel.href=d.files.excel;result.classList.remove("hidden")}catch(x){status.textContent="❌ "+x.message}};
-</script></body></html>
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AI Video Notes</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<main>
+<section class="card">
+  <h1>🎓 AI Video Notes Maker</h1>
+  <p>YouTube / Video → Notes → PDF • Word • Excel</p>
+
+  <form id="notesForm">
+    <label>YouTube URL</label>
+    <input name="youtube_url" placeholder="https://www.youtube.com/watch?v=...">
+
+    <div class="or">OR</div>
+    <label>Paste Transcript (use if YouTube blocks)</label>
+    <textarea name="transcript_text" rows="5" placeholder="Paste transcript here..."></textarea>
+
+    <div class="or">OR</div>
+    <label>Upload Video / Audio</label>
+    <input type="file" name="video" accept=".mp4,.mp3,.m4a,.wav,.webm,.mpeg,.mpga">
+
+    <label>Language</label>
+    <select name="language">
+      <option>English</option><option>Hindi</option><option>Punjabi</option>
+      <option>English + Hindi</option><option>English + Punjabi</option>
+    </select>
+
+    <label>Notes Type</label>
+    <select name="notes_type">
+      <option>Detailed Notes</option><option>Short Notes</option>
+      <option>Exam Notes</option><option>Questions and Answers</option>
+    </select>
+
+    <button type="submit" id="genBtn">GENERATE NOTES</button>
+  </form>
+
+  <div id="statusBox"></div>
+
+  <div id="resultBox" class="hidden">
+    <h2 id="resTitle"></h2>
+    <p id="resSummary"></p>
+    <a id="dlPdf" target="_blank">📄 PDF</a>
+    <a id="dlWord" target="_blank">📝 WORD</a>
+    <a id="dlExcel" target="_blank">📊 EXCEL</a>
+  </div>
+</section>
+</main>
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+  var form = document.getElementById("notesForm");
+  var btn = document.getElementById("genBtn");
+  var statusBox = document.getElementById("statusBox");
+  var resultBox = document.getElementById("resultBox");
+
+  form.addEventListener("submit", async function (e) {
+    e.preventDefault();
+    statusBox.textContent = "⏳ Processing... (1-2 minute lag sakte hain)";
+    resultBox.classList.add("hidden");
+    btn.disabled = true;
+
+    try {
+      var r = await fetch("/generate", { method: "POST", body: new FormData(form) });
+      var d;
+      try { d = await r.json(); }
+      catch (err) { throw new Error("Server error (" + r.status + ")"); }
+      if (!r.ok) throw new Error(d.detail || "Request failed");
+
+      statusBox.textContent = "✅ Done";
+      document.getElementById("resTitle").textContent = d.title;
+      document.getElementById("resSummary").textContent = d.summary;
+      document.getElementById("dlPdf").href = d.files.pdf;
+      document.getElementById("dlWord").href = d.files.word;
+      document.getElementById("dlExcel").href = d.files.excel;
+      resultBox.classList.remove("hidden");
+    } catch (x) {
+      statusBox.textContent = "❌ " + x.message;
+    } finally {
+      btn.disabled = false;
+    }
+  });
+});
+</script>
+</body>
+</html>
