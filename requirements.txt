@@ -1,10 +1,12 @@
 fastapi
 uvicorn[standard]
 python-multipart
-openai
+anthropic
 python-dotenv
 youtube-transcript-api
 yt-dlp
 reportlab
 python-docx
 openpyxl
+# optional: only for audio/video FILE upload transcription
+openai
